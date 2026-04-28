@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -336,8 +337,7 @@ def _card_grid(items: list[str], cols: int = 2) -> str:
 
 def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
     risk_cards = _card_grid(critique.top_3_risks_to_recipient or memo.risks_watch_items[:3], cols=3)
-    st.markdown(
-        f"""
+    inner = f"""
         <div class="dark-report">
             <div class="section-kicker">Board-Ready Competitive Intelligence</div>
             <h2>{escape(str(memo.sector))} Market Read</h2>
@@ -369,9 +369,99 @@ def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
             <div class="report-section-title"><span>Sources</span><span class="section-kicker">Clickable References</span></div>
             {_source_rows(memo.sources)}
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """
+    doc = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  body {{ margin:0; padding:0; background:transparent; font-family:Inter,system-ui,sans-serif; }}
+  .dark-report {{
+    background: linear-gradient(180deg, #071a1f 0%, #0a1117 100%);
+    color: #dbeafe;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 18px;
+    padding: 1.3rem;
+  }}
+  .dark-report h2 {{
+    color: #f8fafc;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: -0.03em;
+    margin-top: 0.2rem;
+  }}
+  .section-kicker {{
+    color: #67e8f9;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }}
+  .report-section-title {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+    margin: 1.3rem 0 0.7rem 0;
+    padding-bottom: 0.35rem;
+    color: #f8fafc;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+  }}
+  .bluf-box {{
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(12, 42, 49, 0.96));
+    border: 1px solid rgba(34, 211, 238, 0.30);
+    border-left: 4px solid #f59e0b;
+    border-radius: 14px;
+    padding: 1rem;
+    font-size: 1.02rem;
+    line-height: 1.55;
+    color: #f8fafc;
+  }}
+  .insight-grid {{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+  }}
+  .action-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+  }}
+  .dark-card {{
+    background: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 12px;
+    padding: 0.85rem;
+    color: #cbd5e1;
+  }}
+  .dark-card strong {{
+    color: #f8fafc;
+  }}
+  .accent-bar {{
+    width: 3px;
+    height: 1.4rem;
+    background: #22d3ee;
+    display: inline-block;
+    margin-right: 0.45rem;
+    vertical-align: middle;
+  }}
+  .source-link {{
+    display: block;
+    color: #67e8f9 !important;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    padding: 0.45rem 0;
+    text-decoration: none;
+  }}
+</style>
+</head>
+<body>
+  {inner}
+</body>
+</html>
+"""
+    height = max(780, min(3400, 820 + len(doc) // 3))
+    components.html(doc, height=height, scrolling=True)
 
 
 def load_demo_payload() -> dict[str, Any]:
