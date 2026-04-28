@@ -32,30 +32,22 @@ class ResearchPlan(BaseModel):
 
 
 class Positioning(BaseModel):
-    company_name: str
-    one_line_positioning: str
-    target_customer: str
-    key_differentiators: list[str]
-    pricing_model: str
-    supported_models: list[str]
-    source_url: str
+    company_name: str = ""
+    one_line_positioning: str = ""
+    target_customer: str = ""
+    key_differentiators: list[str] = Field(default_factory=list)
+    pricing_model: str = ""
+    supported_models: list[str] = Field(default_factory=list)
+    source_url: str = ""
 
 
 class NewsItem(BaseModel):
-    title: str
-    url: str
-    published_date: str
-    summary: str
-    sentiment: Literal["positive", "neutral", "negative"]
-    signal_type: Literal[
-        "product_launch",
-        "funding",
-        "partnership",
-        "leadership",
-        "controversy",
-        "performance_claim",
-        "other",
-    ]
+    title: str = ""
+    url: str = ""
+    published_date: str = ""
+    summary: str = ""
+    sentiment: str = "neutral"
+    signal_type: str = "other"
 
 
 class NewsList(BaseModel):
@@ -63,9 +55,9 @@ class NewsList(BaseModel):
 
 
 class InvestorSignal(BaseModel):
-    signal: str
-    url: str
-    confidence: Literal["confirmed", "rumored", "speculative"]
+    signal: str = ""
+    url: str = ""
+    confidence: str = "speculative"
 
 
 class InvestorSignalList(BaseModel):
@@ -73,12 +65,12 @@ class InvestorSignalList(BaseModel):
 
 
 class SocialSentiment(BaseModel):
-    channel: str
-    audience: str
-    sentiment: Literal["positive", "neutral", "negative", "mixed"]
-    summary: str
-    evidence_url: str
-    confidence: Literal["high", "medium", "low"]
+    channel: str = ""
+    audience: str = ""
+    sentiment: str = "mixed"
+    summary: str = ""
+    evidence_url: str = ""
+    confidence: str = "medium"
 
 
 class SocialSentimentList(BaseModel):
@@ -86,13 +78,13 @@ class SocialSentimentList(BaseModel):
 
 
 class CustomerReviewSignal(BaseModel):
-    source: str
-    segment: str
-    sentiment: Literal["positive", "neutral", "negative", "mixed"]
-    themes: list[str]
-    summary: str
-    evidence_url: str
-    confidence: Literal["high", "medium", "low"]
+    source: str = ""
+    segment: str = ""
+    sentiment: str = "mixed"
+    themes: list[str] = Field(default_factory=list)
+    summary: str = ""
+    evidence_url: str = ""
+    confidence: str = "medium"
 
 
 class CustomerReviewSignalList(BaseModel):
@@ -117,42 +109,33 @@ class Source(BaseModel):
 
 
 class ExecMemo(BaseModel):
-    sector: str
-    date: str
-    bottom_line: str
-    key_movements: list[str]
-    competitive_dynamics: str
-    investor_sentiment_read: str
+    sector: str = ""
+    date: str = ""
+    bottom_line: str = ""
+    key_movements: list[str] = Field(default_factory=list)
+    competitive_dynamics: str = ""
+    investor_sentiment_read: str = ""
     social_customer_sentiment_read: str = ""
-    risks_watch_items: list[str]
-    recommended_actions: list[str]
-    sources: list[Source]
-    full_markdown: str
+    risks_watch_items: list[str] = Field(default_factory=list)
+    recommended_actions: list[str] = Field(default_factory=list)
+    sources: list[dict] = Field(default_factory=list)
+    full_markdown: str = ""
 
 
 class CritiqueFinding(BaseModel):
-    dimension: Literal[
-        "source_quality",
-        "recency",
-        "logical_leap",
-        "selection_bias",
-        "hallucination",
-        "strategic_blind_spot",
-        "actionability",
-        "brief_alignment",
-    ]
-    severity: Literal["low", "medium", "high"]
-    location: str
-    finding: str
-    evidence: str
-    recommended_fix: str
+    dimension: str = "brief_alignment"
+    severity: str = "medium"
+    location: str = ""
+    finding: str = ""
+    evidence: str = ""
+    recommended_fix: str = ""
 
 
 class CritiqueReport(BaseModel):
-    overall_verdict: Literal["ship", "revise", "reject"]
-    confidence_score: int
-    confidence_rationale: str
-    findings: list[CritiqueFinding]
-    strongest_aspects: list[str]
-    top_3_risks_to_recipient: list[str]
-    open_questions_for_followup: list[str]
+    overall_verdict: str = "revise"
+    confidence_score: int = 70
+    confidence_rationale: str = ""
+    findings: list[CritiqueFinding] = Field(default_factory=list)
+    strongest_aspects: list[str] = Field(default_factory=list)
+    top_3_risks_to_recipient: list[str] = Field(default_factory=list)
+    open_questions_for_followup: list[str] = Field(default_factory=list)

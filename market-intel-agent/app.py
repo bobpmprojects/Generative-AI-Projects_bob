@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -168,6 +169,85 @@ def apply_exec_theme() -> None:
             color: var(--navy);
             font-weight: 700;
         }
+        .dark-report {
+            background:
+                radial-gradient(circle at 15% 0%, rgba(20,184,166,0.14), transparent 26rem),
+                linear-gradient(180deg, #071a1f 0%, #0a1117 100%);
+            color: #dbeafe;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 18px;
+            padding: 1.3rem;
+            box-shadow: 0 22px 50px rgba(2, 6, 23, 0.34);
+        }
+        .dark-report h2, .dark-report h3 {
+            color: #f8fafc;
+            font-family: Georgia, 'Times New Roman', serif;
+            letter-spacing: -0.03em;
+        }
+        .report-section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+            margin: 1.3rem 0 0.7rem 0;
+            padding-bottom: 0.35rem;
+            color: #f8fafc;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+        .section-kicker {
+            color: #67e8f9;
+            font-family: Inter, sans-serif;
+            font-size: 0.62rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .bluf-box {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(12, 42, 49, 0.96));
+            border: 1px solid rgba(34, 211, 238, 0.30);
+            border-left: 4px solid #f59e0b;
+            border-radius: 14px;
+            padding: 1rem;
+            font-size: 1.02rem;
+            line-height: 1.55;
+            color: #f8fafc;
+        }
+        .insight-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.8rem;
+        }
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.8rem;
+        }
+        .dark-card {
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 12px;
+            padding: 0.85rem;
+            color: #cbd5e1;
+        }
+        .dark-card strong {
+            color: #f8fafc;
+        }
+        .accent-bar {
+            width: 3px;
+            height: 1.4rem;
+            background: #22d3ee;
+            display: inline-block;
+            margin-right: 0.45rem;
+            vertical-align: middle;
+        }
+        .source-link {
+            display: block;
+            color: #67e8f9 !important;
+            border-top: 1px solid rgba(148, 163, 184, 0.18);
+            padding: 0.45rem 0;
+            text-decoration: none;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -232,6 +312,67 @@ def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
     )
 
 
+def _source_rows(sources: list[dict]) -> str:
+    rows = []
+    for idx, src in enumerate(sources[:10], start=1):
+        title = escape(str(src.get("title") or src.get("url") or "Source"))
+        url = escape(str(src.get("url") or "#"))
+        rows.append(f"<a class='source-link' href='{url}' target='_blank'>[{idx}] {title}</a>")
+    return "".join(rows)
+
+
+def _card_grid(items: list[str], cols: int = 2) -> str:
+    css_class = "action-grid" if cols == 3 else "insight-grid"
+    cards = []
+    for idx, item in enumerate(items, start=1):
+        cards.append(
+            "<div class='dark-card'>"
+            f"<strong><span class='accent-bar'></span>{idx:02d}</strong><br>{escape(str(item))}"
+            "</div>"
+        )
+    return f"<div class='{css_class}'>{''.join(cards)}</div>"
+
+
+def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
+    risk_cards = _card_grid(critique.top_3_risks_to_recipient or memo.risks_watch_items[:3], cols=3)
+    st.markdown(
+        f"""
+        <div class="dark-report">
+            <div class="section-kicker">Board-Ready Competitive Intelligence</div>
+            <h2>{escape(str(memo.sector))} Market Read</h2>
+            <div class="bluf-box"><strong>Bottom Line:</strong> {escape(str(memo.bottom_line))}</div>
+
+            <div class="report-section-title"><span>Key Movements</span><span class="section-kicker">What Changed</span></div>
+            {_card_grid(memo.key_movements[:6], cols=2)}
+
+            <div class="report-section-title"><span>Competitive Dynamics</span><span class="section-kicker">Strategic Read</span></div>
+            <div class="dark-card">{escape(str(memo.competitive_dynamics))}</div>
+
+            <div class="insight-grid">
+                <div>
+                    <div class="report-section-title"><span>Investor Sentiment</span></div>
+                    <div class="dark-card">{escape(str(memo.investor_sentiment_read))}</div>
+                </div>
+                <div>
+                    <div class="report-section-title"><span>Social & Customer Sentiment</span></div>
+                    <div class="dark-card">{escape(str(memo.social_customer_sentiment_read or "See Social & Reviews tab for extracted evidence."))}</div>
+                </div>
+            </div>
+
+            <div class="report-section-title"><span>Risks</span><span class="section-kicker">Recipient Watchouts</span></div>
+            {risk_cards}
+
+            <div class="report-section-title"><span>Recommended Actions</span><span class="section-kicker">Next Moves</span></div>
+            {_card_grid(memo.recommended_actions[:6], cols=3)}
+
+            <div class="report-section-title"><span>Sources</span><span class="section-kicker">Clickable References</span></div>
+            {_source_rows(memo.sources)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def load_demo_payload() -> dict[str, Any]:
     return json.loads((BASE_DIR / "samples" / "sample_run.json").read_text(encoding="utf-8"))
 
@@ -265,6 +406,12 @@ def render_live_error(error: Exception) -> None:
             "If you selected GPT-5.5, verify that model is enabled for your API key; otherwise use GPT-4o."
         )
         st.code(raw_detail[:1200])
+    elif error_name == "ValidationError":
+        st.error(
+            "The model returned output that did not match the app schema. "
+            "I have loosened the schema and added a richer report renderer; redeploy the latest build and retry."
+        )
+        st.code(raw_detail[:1600])
     else:
         st.error(f"Live run failed: {error_name}. Check Streamlit Cloud logs for details.")
         st.code(raw_detail[:1200])
@@ -392,9 +539,9 @@ def main() -> None:
             f"- Confidence score: **{critique.confidence_score}/100**\n"
             + "\n".join(f"- Risk: {r}" for r in critique.top_3_risks_to_recipient)
         )
-        st.markdown("<div class='report-card'>", unsafe_allow_html=True)
-        st.markdown(memo_with_risks)
-        st.markdown("</div>", unsafe_allow_html=True)
+        render_premium_memo(memo, critique)
+        with st.expander("Full cited memo text"):
+            st.markdown(memo_with_risks)
         st.download_button("Export as .md", data=memo_with_risks, file_name="market_intel_memo.md")
         if "memo_v1" in result and result.get("memo_v1") != result.get("memo_v2"):
             with st.expander("View v1 memo"):
