@@ -8,8 +8,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-import chromadb
-
 from .schemas import Positioning
 
 
@@ -17,6 +15,8 @@ class IntelCache:
     """Small convenience wrapper around a local persistent Chroma collection."""
 
     def __init__(self, db_path: str = "chroma_db") -> None:
+        import chromadb
+
         Path(db_path).mkdir(parents=True, exist_ok=True)
         client = chromadb.PersistentClient(path=db_path)
         self.collection = client.get_or_create_collection("market_intel_cache")
