@@ -30,7 +30,7 @@ DEFAULT_BRIEF = (
     "Together AI, Fireworks, and Baseten are differentiating against Bedrock and Vertex. "
     "Want to know who's winning enterprise share over the last 6 months and which is most likely to IPO."
 )
-PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01}
+PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01, "gpt-5.5": 0.02}
 
 
 def apply_exec_theme() -> None:
@@ -508,7 +508,8 @@ def render_live_error(error: Exception) -> None:
     elif "badrequesterror" in detail:
         st.error(
             f"OpenAI rejected the {stage or 'request'}. "
-            "Try gpt-4o-mini in the sidebar and retry; the underlying message is below."
+            "If you chose GPT-5.5, confirm it is enabled for your key; otherwise pick GPT-4o. "
+            "Synthesis and critique automatically retry on GPT-4o when the primary model fails — check the message below."
         )
     elif "validationerror" in detail:
         st.error(
@@ -595,10 +596,13 @@ def main() -> None:
 
     with st.sidebar:
         demo_mode = st.toggle("Demo Mode", value=True)
-        model_options = ["gpt-4o", "gpt-4o-mini"]
+        model_options = ["gpt-5.5", "gpt-4o", "gpt-4o-mini"]
         synth_model = st.selectbox("Synthesis model", model_options, index=0)
         critic_model = st.selectbox("Critic model", model_options, index=0)
-        st.caption("GPT-4o for high quality synthesis and critique; GPT-4o-mini for cheaper runs.")
+        st.caption(
+            "Default: GPT-5.5 for synthesis and critique when your API key supports it; "
+            "falls back to GPT-4o on error. Use GPT-4o-mini to reduce cost."
+        )
         openai_key = get_config_secret("OPENAI_API_KEY")
         tavily_key = get_config_secret("TAVILY_API_KEY")
         if not demo_mode:
