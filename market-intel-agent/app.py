@@ -28,7 +28,7 @@ DEFAULT_BRIEF = (
     "Together AI, Fireworks, and Baseten are differentiating against Bedrock and Vertex. "
     "Want to know who's winning enterprise share over the last 6 months and which is most likely to IPO."
 )
-PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01, "gpt-5.5": 0.02}
+PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01}
 
 
 def apply_exec_theme() -> None:
@@ -312,11 +312,12 @@ def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
     )
 
 
-def _source_rows(sources: list[dict]) -> str:
+def _source_rows(sources: list[Any]) -> str:
     rows = []
     for idx, src in enumerate(sources[:10], start=1):
-        title = escape(str(src.get("title") or src.get("url") or "Source"))
-        url = escape(str(src.get("url") or "#"))
+        data = src.model_dump() if hasattr(src, "model_dump") else src
+        title = escape(str(data.get("title") or data.get("url") or "Source"))
+        url = escape(str(data.get("url") or "#"))
         rows.append(f"<a class='source-link' href='{url}' target='_blank'>[{idx}] {title}</a>")
     return "".join(rows)
 
@@ -389,32 +390,36 @@ def render_live_error(error: Exception) -> None:
     error_name = type(error).__name__
     raw_detail = str(error)
     detail = raw_detail.lower()
+    stage = ""
+    if raw_detail.startswith("Stage failed: "):
+        try:
+            stage = raw_detail.split("Stage failed: ", 1)[1].split(" ->", 1)[0]
+        except Exception:
+            stage = ""
     if "tavily" in error_name.lower() or "invalid api key" in detail:
+        st.error("Tavily rejected the API key in Streamlit secrets. Verify TAVILY_API_KEY.")
+    elif "openai" in detail and "authentication" in detail:
+        st.error("OpenAI rejected the API key in Streamlit secrets. Verify OPENAI_API_KEY.")
+    elif "badrequesterror" in detail:
         st.error(
-            "Tavily rejected the API key in Streamlit secrets. "
-            "Open Manage app -> Settings -> Secrets and verify TAVILY_API_KEY is the raw key from Tavily."
+            f"OpenAI rejected the {stage or 'request'}. "
+            "Try gpt-4o-mini in the sidebar and retry; the underlying message is below."
         )
-        st.info('Expected format: `TAVILY_API_KEY = "tvly-..."` with no extra spaces, labels, or quotes inside the value.')
-    elif "openai" in error_name.lower() or "authentication" in detail:
+    elif "validationerror" in detail:
         st.error(
-            "OpenAI rejected the API key in Streamlit secrets. "
-            "Verify OPENAI_API_KEY in Manage app -> Settings -> Secrets."
+            f"Model output for stage '{stage}' did not match the schema. "
+            "Retry the run; the underlying message is below."
         )
-    elif error_name == "BadRequestError":
-        st.error(
-            "OpenAI rejected one of the model or structured-output requests. "
-            "If you selected GPT-5.5, verify that model is enabled for your API key; otherwise use GPT-4o."
-        )
-        st.code(raw_detail[:1200])
-    elif error_name == "ValidationError":
-        st.error(
-            "The model returned output that did not match the app schema. "
-            "I have loosened the schema and added a richer report renderer; redeploy the latest build and retry."
-        )
-        st.code(raw_detail[:1600])
     else:
-        st.error(f"Live run failed: {error_name}. Check Streamlit Cloud logs for details.")
-        st.code(raw_detail[:1200])
+        st.error(f"Live run failed at stage '{stage or 'unknown'}'.")
+    st.code(raw_detail[:1800])
+
+
+def _stage(name: str, fn):
+    try:
+        return fn()
+    except Exception as exc:
+        raise RuntimeError(f"Stage failed: {name} -> {type(exc).__name__}: {exc}") from exc
 
 
 def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, critic_model: str) -> None:
@@ -423,7 +428,7 @@ def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, cri
     st.session_state.cost_usd = 0.0
     with st.status("Running Market Intel Agent...", expanded=True) as status:
         st.write("1/4 Parsing research brief into plan...")
-        plan, usage = build_plan(client, brief, model="gpt-4o-mini")
+        plan, usage = _stage("scoping_plan", lambda: build_plan(client, brief, model="gpt-4o-mini"))
         update_cost("gpt-4o-mini", usage)
 
         st.write("2/4 Gathering company intel, social sentiment, and customer reviews in parallel...")
@@ -434,16 +439,25 @@ def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, cri
             done.append(name)
             prog.info(f"Gathered: {', '.join(done)}")
 
-        intel, usages = gather_company_intel(client, cache, tavily_key, plan, status_cb=on_company)
+        intel, usages = _stage(
+            "company_intel_gather",
+            lambda: gather_company_intel(client, cache, tavily_key, plan, status_cb=on_company),
+        )
         for u in usages:
             update_cost("gpt-4o-mini", u)
 
         st.write("3/4 Synthesizing executive memo...")
-        memo, usage = build_exec_memo(client, plan, intel, model=synth_model)
+        memo, usage = _stage(
+            "memo_synthesis",
+            lambda: build_exec_memo(client, plan, intel, model=synth_model),
+        )
         update_cost(synth_model, usage)
 
         st.write("4/4 Red-teaming memo critique...")
-        critique, usage = critique_memo(client, plan, memo.full_markdown, memo.sources, model=critic_model)
+        critique, usage = _stage(
+            "memo_critique",
+            lambda: critique_memo(client, plan, memo.full_markdown, memo.sources, model=critic_model),
+        )
         update_cost(critic_model, usage)
 
         status.update(label="Run complete", state="complete")
@@ -468,10 +482,10 @@ def main() -> None:
 
     with st.sidebar:
         demo_mode = st.toggle("Demo Mode", value=True)
-        model_options = ["gpt-5.5", "gpt-4o", "gpt-4o-mini"]
+        model_options = ["gpt-4o", "gpt-4o-mini"]
         synth_model = st.selectbox("Synthesis model", model_options, index=0)
         critic_model = st.selectbox("Critic model", model_options, index=0)
-        st.caption("Use GPT-5.5 only if it is enabled for your OpenAI API key; GPT-4o is the fallback.")
+        st.caption("GPT-4o for high quality synthesis and critique; GPT-4o-mini for cheaper runs.")
         openai_key = get_config_secret("OPENAI_API_KEY")
         tavily_key = get_config_secret("TAVILY_API_KEY")
         if not demo_mode:

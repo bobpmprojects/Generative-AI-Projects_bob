@@ -102,8 +102,8 @@ class CompanyIntel(BaseModel):
 
 
 class Source(BaseModel):
-    title: str
-    url: str
+    title: str = ""
+    url: str = ""
     publisher: str = ""
     note: str = ""
 
@@ -118,7 +118,7 @@ class ExecMemo(BaseModel):
     social_customer_sentiment_read: str = ""
     risks_watch_items: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
-    sources: list[dict] = Field(default_factory=list)
+    sources: list[Source] = Field(default_factory=list)
     full_markdown: str = ""
 
 
