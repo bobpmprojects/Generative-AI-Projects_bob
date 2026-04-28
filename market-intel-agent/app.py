@@ -17,7 +17,8 @@ from openai import OpenAI
 from agent.cache import IntelCache
 from agent.critic import critique_memo
 from agent.fetcher import gather_company_intel
-from agent.schemas import CritiqueReport, ExecMemo, ResearchPlan
+from agent.market import get_market_context
+from agent.schemas import CritiqueReport, ExecMemo, MarketContextReport, ResearchPlan
 from agent.scope import build_plan
 from agent.synthesizer import build_exec_memo, revise_memo
 
@@ -272,14 +273,26 @@ def update_cost(model: str, usage: dict[str, Any]) -> None:
     st.session_state.cost_usd += est_cost(model, usage)
 
 
-def verdict_color(verdict: str) -> str:
-    return {"ship": "green", "revise": "orange", "reject": "red"}.get(verdict, "gray")
-
-
-def render_badge(verdict: str) -> str:
-    colors = {"ship": "#15803d", "revise": "#c99700", "reject": "#b91c1c"}
-    bg = colors.get(verdict, "#4b5563")
-    return f"<span class='verdict-pill' style='background:{bg};'>Verdict: {verdict.upper()}</span>"
+def render_qc_callout(verdict: str, score: int) -> None:
+    verdict_l = (verdict or "").lower().strip()
+    if verdict_l == "ship":
+        st.success(
+            f"Automated quality check: **Ship** (confidence {score}/100). "
+            "This is a machine red-team assessment, not a human sign-off."
+        )
+    elif verdict_l == "revise":
+        st.warning(
+            f"Automated quality check: **Revise** (confidence {score}/100). "
+            "The model suggests tightening sourcing or narrowing claims before you circulate externally. "
+            "Use **Revise memo with this feedback** on the Critique tab to generate an edited v2."
+        )
+    elif verdict_l == "reject":
+        st.error(
+            f"Automated quality check: **Reject** (confidence {score}/100). "
+            "Do not share this memo until the issues in the Critique tab are addressed."
+        )
+    else:
+        st.info(f"Automated quality check returned `{verdict}` (confidence {score}/100).")
 
 
 def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
@@ -313,16 +326,19 @@ def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
     )
 
 
-def _source_rows(sources: list[Any]) -> str:
-    rows = []
-    for idx, src in enumerate(sources[:10], start=1):
-        data = src.model_dump() if hasattr(src, "model_dump") else src
-        title = escape(str(data.get("title") or data.get("url") or "Source"))
-        url = escape(str(data.get("url") or "#"))
-        rows.append(f"<a class='source-link' href='{url}' target='_blank'>[{idx}] {title}</a>")
-    return "".join(rows)
-
-
+def render_streamlit_sources(title: str, sources: list[Any]) -> None:
+    st.markdown(f"### {title}")
+    if not sources:
+        st.caption("No bibliography entries returned for this run.")
+        return
+    for idx, src in enumerate(sources, start=1):
+        bag = src.model_dump() if hasattr(src, "model_dump") else src
+        label = str(bag.get("title") or bag.get("url") or "Source")
+        url = str(bag.get("url") or "").strip()
+        if url:
+            st.markdown(f"{idx}. [{label}]({url})")
+        else:
+            st.markdown(f"{idx}. {label}")
 def _card_grid(items: list[str], cols: int = 2) -> str:
     css_class = "action-grid" if cols == 3 else "insight-grid"
     cards = []
@@ -366,8 +382,7 @@ def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
             <div class="report-section-title"><span>Recommended Actions</span><span class="section-kicker">Next Moves</span></div>
             {_card_grid(memo.recommended_actions[:6], cols=3)}
 
-            <div class="report-section-title"><span>Sources</span><span class="section-kicker">Clickable References</span></div>
-            {_source_rows(memo.sources)}
+            <div class="section-kicker" style="margin-top:1rem;">References open in normal browser tabs below this panel.</div>
         </div>
     """
     doc = f"""
@@ -517,11 +532,18 @@ def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, cri
     cache = IntelCache()
     st.session_state.cost_usd = 0.0
     with st.status("Running Market Intel Agent...", expanded=True) as status:
-        st.write("1/4 Parsing research brief into plan...")
+        st.write("1/5 Parsing research brief into plan...")
         plan, usage = _stage("scoping_plan", lambda: build_plan(client, brief, model="gpt-4o-mini"))
         update_cost("gpt-4o-mini", usage)
 
-        st.write("2/4 Gathering company intel, social sentiment, and customer reviews in parallel...")
+        st.write("2/5 Building market context (TAM / growth signals from web evidence)...")
+        market_context, m_usage = _stage(
+            "market_context",
+            lambda: get_market_context(client, cache, tavily_key, plan),
+        )
+        update_cost("gpt-4o-mini", m_usage)
+
+        st.write("3/5 Gathering company intel, social sentiment, and customer reviews in parallel...")
         done: list[str] = []
         prog = st.empty()
 
@@ -536,14 +558,14 @@ def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, cri
         for u in usages:
             update_cost("gpt-4o-mini", u)
 
-        st.write("3/4 Synthesizing executive memo...")
+        st.write("4/5 Synthesizing executive memo...")
         memo, usage = _stage(
             "memo_synthesis",
-            lambda: build_exec_memo(client, plan, intel, model=synth_model),
+            lambda: build_exec_memo(client, plan, intel, market_context, model=synth_model),
         )
         update_cost(synth_model, usage)
 
-        st.write("4/4 Red-teaming memo critique...")
+        st.write("5/5 Red-teaming memo critique...")
         critique, usage = _stage(
             "memo_critique",
             lambda: critique_memo(client, plan, memo.full_markdown, memo.sources, model=critic_model),
@@ -554,6 +576,7 @@ def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, cri
 
     st.session_state.result = {
         "plan": plan.model_dump(),
+        "market_context": market_context.model_dump(),
         "intel": {k: v.model_dump() for k, v in intel.items()},
         "memo": memo.model_dump(),
         "critique": critique.model_dump(),
@@ -637,13 +660,27 @@ def main() -> None:
 
     with tabs[0]:
         render_report_header(plan, critique)
-        st.markdown(render_badge(critique.overall_verdict), unsafe_allow_html=True)
+        render_qc_callout(critique.overall_verdict, critique.confidence_score)
         memo_with_risks = (
             f"{memo_text}\n\n## Confidence & Risks\n"
             f"- Confidence score: **{critique.confidence_score}/100**\n"
             + "\n".join(f"- Risk: {r}" for r in critique.top_3_risks_to_recipient)
         )
         render_premium_memo(memo, critique)
+        if result.get("market_context"):
+            mc = MarketContextReport.model_validate(result["market_context"])
+            with st.expander("Market context evidence (TAM / growth)"):
+                st.markdown(mc.executive_summary or "_No executive summary returned._")
+                st.markdown(f"**TAM / spend signals:** {mc.tam_and_spend_signals or '—'}")
+                st.markdown(f"**Growth / CAGR signals:** {mc.growth_and_cagr_signals or '—'}")
+                if mc.demand_drivers:
+                    st.markdown("**Demand drivers:** " + "; ".join(mc.demand_drivers))
+                if mc.headwinds:
+                    st.markdown("**Headwinds:** " + "; ".join(mc.headwinds))
+                if mc.methodology_caveats:
+                    st.caption(mc.methodology_caveats)
+                render_streamlit_sources("Supporting market sources", mc.supporting_sources)
+        render_streamlit_sources("Memo bibliography (clickable)", memo.sources)
         with st.expander("Full cited memo text"):
             st.markdown(memo_with_risks)
         st.download_button("Export as .md", data=memo_with_risks, file_name="market_intel_memo.md")
@@ -652,7 +689,7 @@ def main() -> None:
                 st.markdown(result["memo_v1"])
 
     with tabs[1]:
-        st.markdown(render_badge(critique.overall_verdict), unsafe_allow_html=True)
+        render_qc_callout(critique.overall_verdict, critique.confidence_score)
         st.markdown("<div class='report-card'>", unsafe_allow_html=True)
         st.subheader(f"Confidence Score: {critique.confidence_score}/100")
         st.caption(critique.confidence_rationale)

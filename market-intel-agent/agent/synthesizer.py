@@ -7,13 +7,14 @@ from datetime import date
 
 from openai import OpenAI
 
-from .schemas import CompanyIntel, ExecMemo, ResearchPlan
+from .schemas import CompanyIntel, ExecMemo, MarketContextReport, ResearchPlan
 
 
 def build_exec_memo(
     client: OpenAI,
     plan: ResearchPlan,
     intel_by_company: dict[str, CompanyIntel],
+    market_context: MarketContextReport | None = None,
     model: str = "gpt-4o",
 ) -> tuple[ExecMemo, dict]:
     prompt = """You are a senior partner at a top-tier strategy firm writing a premium executive intelligence report.
@@ -26,6 +27,7 @@ MANDATORY RULES:
 6) Include these sections in full_markdown:
    - Executive Bottom Line
    - Decision Context and Research Scope
+   - Market Size, Spend, and Growth (TAM / CAGR signals when evidenced)
    - Market Structure and Competitive Archetypes
    - Key Movements Since Lookback Window
    - Company-by-Company Strategic Read
@@ -40,11 +42,13 @@ MANDATORY RULES:
    social/customer sentiment, risk, and action implication.
 8) Sources must be numbered and include markdown hyperlinks when URLs exist.
 9) If evidence is weak, say so directly; do not fill gaps with assumptions.
+10) When market_context is provided, ground TAM/growth statements in those sources and reflect caveats.
 """
     payload = {
         "date": str(date.today()),
         "plan": plan.model_dump(),
         "intel": {k: v.model_dump() for k, v in intel_by_company.items()},
+        "market_context": market_context.model_dump() if market_context else None,
     }
     messages = [
         {"role": "system", "content": prompt},

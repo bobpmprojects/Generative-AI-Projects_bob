@@ -21,6 +21,23 @@
     "clarification_needed": [],
     "plan_summary": "Compare independent inference vendors against cloud-native options on traction, differentiation, and investor momentum."
   },
+  "market_context": {
+    "executive_summary": "Illustrative demo context: market sizing varies widely by definition of inference spend vs foundation-model spend.",
+    "tam_and_spend_signals": "Public sources rarely agree on exact AI inference TAM; treat vendor claims as directional until triangulated across multiple forecasts [demo].",
+    "growth_and_cagr_signals": "Growth is typically framed as high double-digits in AI infrastructure, but CAGR depends heavily on whether the scope includes GPUs, cloud spend, and inference APIs [demo].",
+    "demand_drivers": [
+      "Enterprise production deployments shifting from pilots to SLAs",
+      "Latency/throughput requirements for agentic workloads"
+    ],
+    "headwinds": [
+      "Commoditization pressure on markup above raw compute",
+      "Budget scrutiny if model performance plateaus"
+    ],
+    "methodology_caveats": "This demo block is synthetic; live runs ground this section in Tavily-retrieved analyst coverage.",
+    "supporting_sources": [
+      {"title": "Illustrative market primer (placeholder)", "url": "https://example.com/market-primer", "publisher": "Demo", "note": "Replace with live retrieval output"}
+    ]
+  },
   "memo": {
     "sector": "AI inference platforms",
     "date": "2026-04-28",

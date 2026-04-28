@@ -108,6 +108,16 @@ class Source(BaseModel):
     note: str = ""
 
 
+class MarketContextReport(BaseModel):
+    executive_summary: str = ""
+    tam_and_spend_signals: str = ""
+    growth_and_cagr_signals: str = ""
+    demand_drivers: list[str] = Field(default_factory=list)
+    headwinds: list[str] = Field(default_factory=list)
+    methodology_caveats: str = ""
+    supporting_sources: list[Source] = Field(default_factory=list)
+
+
 class ExecMemo(BaseModel):
     sector: str = ""
     date: str = ""
