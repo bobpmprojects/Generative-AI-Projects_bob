@@ -1,0 +1,101 @@
+{
+  "plan": {
+    "sector": "AI inference platforms",
+    "companies": ["Together AI", "Fireworks AI", "Baseten", "Amazon Bedrock", "Google Vertex AI"],
+    "inferred_companies": ["Anyscale", "Replicate"],
+    "key_questions": [
+      {
+        "question": "Who is gaining enterprise share in the last 6 months?",
+        "rationale": "Supports hyperscaler partner and product strategy."
+      },
+      {
+        "question": "Which platforms have the strongest IPO trajectory?",
+        "rationale": "Indicates durability of market leaders."
+      }
+    ],
+    "geographic_scope": "US + global enterprise buyers",
+    "lookback_days": 180,
+    "decision_context": "competitive_strategy",
+    "decision_context_detail": "Hyperscaler PM evaluating ecosystem positioning and partner opportunities.",
+    "confidence": "high",
+    "clarification_needed": [],
+    "plan_summary": "Compare independent inference vendors against cloud-native options on traction, differentiation, and investor momentum."
+  },
+  "memo": {
+    "sector": "AI inference platforms",
+    "date": "2026-04-28",
+    "bottom_line": "Independent inference vendors are sustaining momentum in developer adoption, but hyperscaler bundles still dominate enterprise procurement pathways.",
+    "key_movements": [
+      "Fireworks and Together highlighted latency and model-availability updates tied to enterprise workloads [1][2].",
+      "Baseten expanded deployment tooling with inference observability positioning for production teams [3].",
+      "Bedrock and Vertex both tightened integration with existing cloud governance controls, preserving enterprise advantage [4][5]."
+    ],
+    "competitive_dynamics": "Independent vendors compete on speed of model onboarding, hardware flexibility, and transparent pricing, while hyperscalers win on procurement simplicity and security posture [1][4][5].",
+    "investor_sentiment_read": "Investor tone remains constructive for specialist inference platforms, but public market timing appears dependent on sustained enterprise ARR growth signals [2][6].",
+    "risks_watch_items": [
+      "Rapid model commoditization may compress margins for API-only vendors [1][6].",
+      "Hyperscaler discounting can reduce expansion runway for independents [4][5]."
+    ],
+    "recommended_actions": [
+      "Prioritize partnership strategy with two independent vendors for differentiated model access [1][2][3].",
+      "Mirror hyperscaler-grade compliance workflows in product messaging to reduce enterprise objections [4][5]."
+    ],
+    "sources": [
+      {"title": "Together AI platform update", "url": "https://example.com/together-update"},
+      {"title": "Fireworks enterprise launch", "url": "https://example.com/fireworks-enterprise"},
+      {"title": "Baseten product release", "url": "https://example.com/baseten-release"},
+      {"title": "AWS Bedrock enterprise post", "url": "https://example.com/bedrock-post"},
+      {"title": "Vertex AI roadmap", "url": "https://example.com/vertex-roadmap"},
+      {"title": "Inference market investor analysis", "url": "https://example.com/investor-analysis"}
+    ],
+    "full_markdown": "## Bottom Line\nIndependent inference vendors are gaining technical mindshare, but hyperscalers retain enterprise buying leverage [1][4][5].\n\n## Key Movements\n- Together AI and Fireworks emphasized enterprise latency and reliability wins tied to production workloads [1][2].\n- Baseten pushed platform capability expansion around deployment and observability [3].\n- Bedrock and Vertex improved governance-oriented controls that reduce adoption friction for large buyers [4][5].\n\n## Competitive Dynamics\nSpecialists differentiate on speed, optionality, and focused developer experience, while cloud incumbents leverage integrated security, procurement, and committed-spend economics [1][4][5].\n\n## Investor Sentiment Read\nFunding and analyst coverage indicate positive sentiment for specialist leaders, though IPO readiness remains contingent on repeatable enterprise expansion metrics [2][6].\n\n## Confidence & Risks\n- Confidence score: **78/100**\n- Risk: Procurement lock-in may reduce specialist conversion in Fortune 500 accounts [4][5].\n- Risk: Signal quality varies across private company disclosures and reported benchmarks [1][6].\n- Risk: Rapid model shifts can invalidate current differentiation narratives [1][3].\n\n## Recommended Actions\n1. Build co-sell options with top specialist platforms while preserving cloud-neutral API strategy [1][2][3].\n2. Track procurement friction indicators (security review time, legal cycle length) as a leading share signal [4][5].\n3. Re-run this assessment monthly with updated funding and customer evidence [2][6].\n\n## Comparison Table\n| Company | Positioning | Momentum | Investor Read |\n|---|---|---|---|\n| Together AI | Open and fast inference platform | Accelerating | Positive but private-market dependent [1][6] |\n| Fireworks AI | Performance-focused enterprise inference | Accelerating | Strong enterprise signal mix [2] |\n| Baseten | Production inference + observability | Steady | Improving narrative but still mixed [3] |\n| Bedrock | Enterprise managed model layer | Steady | Backed by AWS distribution [4] |\n| Vertex AI | Google-managed AI stack | Steady | Backed by Google Cloud channels [5] |\n\n## Sources\n[1] Together AI platform update\n[2] Fireworks enterprise launch\n[3] Baseten product release\n[4] AWS Bedrock enterprise post\n[5] Vertex AI roadmap\n[6] Inference market investor analysis"
+  },
+  "critique": {
+    "overall_verdict": "revise",
+    "confidence_score": 78,
+    "confidence_rationale": "Memo is directionally strong but contains a few broad assertions that need tighter source grounding.",
+    "findings": [
+      {
+        "dimension": "source_quality",
+        "severity": "medium",
+        "location": "Investor Sentiment Read",
+        "finding": "Private market confidence statement is broad.",
+        "evidence": "Only one investor-analysis source is referenced for a market-wide conclusion.",
+        "recommended_fix": "Add at least one additional source or narrow claim scope."
+      },
+      {
+        "dimension": "logical_leap",
+        "severity": "medium",
+        "location": "Bottom Line",
+        "finding": "Enterprise leverage claim may overgeneralize.",
+        "evidence": "No quantified enterprise share data is cited.",
+        "recommended_fix": "Qualify statement and include concrete trend indicators."
+      },
+      {
+        "dimension": "brief_alignment",
+        "severity": "low",
+        "location": "Recommended Actions",
+        "finding": "IPO-oriented recommendation can be more explicit.",
+        "evidence": "Brief asked specifically about IPO likelihood.",
+        "recommended_fix": "Add an explicit IPO watchlist action."
+      }
+    ],
+    "strongest_aspects": [
+      "Clear strategic framing for hyperscaler decision-making",
+      "Well-structured section flow aligned with executive consumption"
+    ],
+    "top_3_risks_to_recipient": [
+      "Potential overconfidence without quantitative share data",
+      "Dependence on best-effort publication dates in sources",
+      "Private company signal quality is uneven"
+    ],
+    "open_questions_for_followup": [
+      "What concrete enterprise customer wins have converted in the last quarter?",
+      "Which vendor shows strongest retention among large production users?"
+    ]
+  },
+  "intel": {
+    "Together AI": {"positioning": {"company_name": "Together AI", "one_line_positioning": "Inference platform for open-source models", "target_customer": "AI product teams", "key_differentiators": ["model breadth"], "pricing_model": "usage-based", "supported_models": ["Llama"], "source_url": "https://example.com/together-update"}, "recent_news": [], "investor_signals": [], "overall_momentum": "accelerating", "momentum_rationale": "Positive launch and partnership cadence."}
+  },
+  "memo_v1": "## Bottom Line\nIndependent inference vendors are gaining technical mindshare, but hyperscalers retain enterprise buying leverage [1][4][5]."
+}
