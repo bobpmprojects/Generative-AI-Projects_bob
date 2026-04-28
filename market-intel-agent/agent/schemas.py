@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScopeQuestion(BaseModel):
@@ -72,12 +72,48 @@ class InvestorSignalList(BaseModel):
     items: list[InvestorSignal]
 
 
+class SocialSentiment(BaseModel):
+    channel: str
+    audience: str
+    sentiment: Literal["positive", "neutral", "negative", "mixed"]
+    summary: str
+    evidence_url: str
+    confidence: Literal["high", "medium", "low"]
+
+
+class SocialSentimentList(BaseModel):
+    items: list[SocialSentiment]
+
+
+class CustomerReviewSignal(BaseModel):
+    source: str
+    segment: str
+    sentiment: Literal["positive", "neutral", "negative", "mixed"]
+    themes: list[str]
+    summary: str
+    evidence_url: str
+    confidence: Literal["high", "medium", "low"]
+
+
+class CustomerReviewSignalList(BaseModel):
+    items: list[CustomerReviewSignal]
+
+
 class CompanyIntel(BaseModel):
     positioning: Positioning
     recent_news: list[NewsItem]
     investor_signals: list[InvestorSignal]
+    social_sentiment: list[SocialSentiment] = Field(default_factory=list)
+    customer_review_signals: list[CustomerReviewSignal] = Field(default_factory=list)
     overall_momentum: Literal["accelerating", "steady", "declining", "unclear"]
     momentum_rationale: str
+
+
+class Source(BaseModel):
+    title: str
+    url: str
+    publisher: str = ""
+    note: str = ""
 
 
 class ExecMemo(BaseModel):
@@ -87,9 +123,10 @@ class ExecMemo(BaseModel):
     key_movements: list[str]
     competitive_dynamics: str
     investor_sentiment_read: str
+    social_customer_sentiment_read: str = ""
     risks_watch_items: list[str]
     recommended_actions: list[str]
-    sources: list[dict]
+    sources: list[Source]
     full_markdown: str
 
 

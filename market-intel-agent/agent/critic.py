@@ -23,18 +23,32 @@ Hard fail citation discipline: if factual claims lack [N], create high severity 
 Return at least 3 findings with concrete evidence and fixes.
 Set overall_verdict to ship/revise/reject.
 """
-    completion = client.beta.chat.completions.parse(
-        model=model,
-        messages=[
-            {"role": "system", "content": prompt},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {"plan": plan.model_dump(), "memo_markdown": memo_markdown, "sources": sources}
-                ),
-            },
-        ],
-        response_format=CritiqueReport,
-    )
+    messages = [
+        {"role": "system", "content": prompt},
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "plan": plan.model_dump(),
+                    "memo_markdown": memo_markdown,
+                    "sources": [s.model_dump() if hasattr(s, "model_dump") else s for s in sources],
+                }
+            ),
+        },
+    ]
+    try:
+        completion = client.beta.chat.completions.parse(
+            model=model,
+            messages=messages,
+            response_format=CritiqueReport,
+        )
+    except Exception:
+        if model == "gpt-4o":
+            raise
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o",
+            messages=messages,
+            response_format=CritiqueReport,
+        )
     usage = completion.usage.model_dump() if completion.usage else {}
     return completion.choices[0].message.parsed, usage

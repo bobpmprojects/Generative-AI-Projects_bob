@@ -27,7 +27,7 @@ DEFAULT_BRIEF = (
     "Together AI, Fireworks, and Baseten are differentiating against Bedrock and Vertex. "
     "Want to know who's winning enterprise share over the last 6 months and which is most likely to IPO."
 )
-PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01}
+PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01, "gpt-5.5": 0.02}
 
 
 def apply_exec_theme() -> None:
@@ -246,7 +246,8 @@ def get_config_secret(name: str) -> str:
 
 def render_live_error(error: Exception) -> None:
     error_name = type(error).__name__
-    detail = str(error).lower()
+    raw_detail = str(error)
+    detail = raw_detail.lower()
     if "tavily" in error_name.lower() or "invalid api key" in detail:
         st.error(
             "Tavily rejected the API key in Streamlit secrets. "
@@ -258,8 +259,15 @@ def render_live_error(error: Exception) -> None:
             "OpenAI rejected the API key in Streamlit secrets. "
             "Verify OPENAI_API_KEY in Manage app -> Settings -> Secrets."
         )
+    elif error_name == "BadRequestError":
+        st.error(
+            "OpenAI rejected one of the model or structured-output requests. "
+            "If you selected GPT-5.5, verify that model is enabled for your API key; otherwise use GPT-4o."
+        )
+        st.code(raw_detail[:1200])
     else:
         st.error(f"Live run failed: {error_name}. Check Streamlit Cloud logs for details.")
+        st.code(raw_detail[:1200])
 
 
 def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, critic_model: str) -> None:
@@ -271,7 +279,7 @@ def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, cri
         plan, usage = build_plan(client, brief, model="gpt-4o-mini")
         update_cost("gpt-4o-mini", usage)
 
-        st.write("2/4 Gathering company intel in parallel...")
+        st.write("2/4 Gathering company intel, social sentiment, and customer reviews in parallel...")
         done: list[str] = []
         prog = st.empty()
 
@@ -313,8 +321,10 @@ def main() -> None:
 
     with st.sidebar:
         demo_mode = st.toggle("Demo Mode", value=True)
-        synth_model = st.selectbox("Synthesis model", ["gpt-4o-mini", "gpt-4o"], index=1)
-        critic_model = st.selectbox("Critic model", ["gpt-4o-mini", "gpt-4o"], index=1)
+        model_options = ["gpt-5.5", "gpt-4o", "gpt-4o-mini"]
+        synth_model = st.selectbox("Synthesis model", model_options, index=0)
+        critic_model = st.selectbox("Critic model", model_options, index=0)
+        st.caption("Use GPT-5.5 only if it is enabled for your OpenAI API key; GPT-4o is the fallback.")
         openai_key = get_config_secret("OPENAI_API_KEY")
         tavily_key = get_config_secret("TAVILY_API_KEY")
         if not demo_mode:
@@ -372,7 +382,7 @@ def main() -> None:
     if critique.overall_verdict == "reject":
         st.error("⚠️ This memo failed critique — review before sharing.")
 
-    tabs = st.tabs(["📋 Memo", "🛡️ Critique", "🧭 Research Plan", "🔗 Sources", "🔍 Raw Intel"])
+    tabs = st.tabs(["📋 Memo", "🛡️ Critique", "🧭 Research Plan", "💬 Social & Reviews", "🔗 Sources", "🔍 Raw Intel"])
 
     with tabs[0]:
         render_report_header(plan, critique)
@@ -470,10 +480,44 @@ def main() -> None:
         )
 
     with tabs[3]:
-        for idx, src in enumerate(memo.sources, start=1):
-            st.markdown(f"{idx}. [{src.get('title', src.get('url', 'Source'))}]({src.get('url', '#')})")
+        social_rows: list[dict[str, str]] = []
+        review_rows: list[dict[str, str]] = []
+        for company, intel in result["intel"].items():
+            for row in intel.get("social_sentiment", []):
+                social_rows.append(
+                    {
+                        "Company": company,
+                        "Channel": row.get("channel", ""),
+                        "Audience": row.get("audience", ""),
+                        "Sentiment": row.get("sentiment", ""),
+                        "Summary": row.get("summary", ""),
+                        "Evidence": row.get("evidence_url", ""),
+                    }
+                )
+            for row in intel.get("customer_review_signals", []):
+                review_rows.append(
+                    {
+                        "Company": company,
+                        "Source": row.get("source", ""),
+                        "Segment": row.get("segment", ""),
+                        "Sentiment": row.get("sentiment", ""),
+                        "Themes": ", ".join(row.get("themes", [])),
+                        "Summary": row.get("summary", ""),
+                        "Evidence": row.get("evidence_url", ""),
+                    }
+                )
+        st.markdown("### Social / Community Sentiment")
+        st.dataframe(pd.DataFrame(social_rows), use_container_width=True)
+        st.markdown("### Customer Review Signals")
+        st.dataframe(pd.DataFrame(review_rows), use_container_width=True)
 
     with tabs[4]:
+        for idx, src in enumerate(memo.sources, start=1):
+            data = src.model_dump() if hasattr(src, "model_dump") else src
+            title = data.get("title") or data.get("url") or "Source"
+            st.markdown(f"{idx}. [{title}]({data.get('url', '#')})")
+
+    with tabs[5]:
         for company, intel in result["intel"].items():
             with st.expander(company):
                 st.json(intel)
