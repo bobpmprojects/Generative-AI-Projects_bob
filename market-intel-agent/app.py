@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +235,14 @@ def load_demo_payload() -> dict[str, Any]:
     return json.loads(Path("samples/sample_run.json").read_text(encoding="utf-8"))
 
 
+def get_config_secret(name: str) -> str:
+    try:
+        value = st.secrets.get(name, "")
+    except (FileNotFoundError, KeyError):
+        value = ""
+    return str(value or os.getenv(name, ""))
+
+
 def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, critic_model: str) -> None:
     client = OpenAI(api_key=openai_key)
     cache = IntelCache()
@@ -287,20 +296,25 @@ def main() -> None:
         demo_mode = st.toggle("Demo Mode", value=True)
         synth_model = st.selectbox("Synthesis model", ["gpt-4o-mini", "gpt-4o"], index=1)
         critic_model = st.selectbox("Critic model", ["gpt-4o-mini", "gpt-4o"], index=1)
-        openai_key = ""
-        tavily_key = ""
+        openai_key = get_config_secret("OPENAI_API_KEY")
+        tavily_key = get_config_secret("TAVILY_API_KEY")
         if not demo_mode:
-            st.caption("Keys are session-only and never stored.")
-            openai_key = st.text_input(
-                "OpenAI API Key",
-                type="password",
-                placeholder="sk-proj-... (from platform.openai.com/api-keys)",
-            )
-            tavily_key = st.text_input(
-                "Tavily API Key",
-                type="password",
-                placeholder="tvly-... (from app.tavily.com/home)",
-            )
+            if openai_key and tavily_key:
+                st.success("Live API keys loaded from Streamlit secrets.")
+            else:
+                st.caption("Missing secrets can be entered here for this session only.")
+                if not openai_key:
+                    openai_key = st.text_input(
+                        "OpenAI API Key",
+                        type="password",
+                        placeholder="sk-proj-... (from platform.openai.com/api-keys)",
+                    )
+                if not tavily_key:
+                    tavily_key = st.text_input(
+                        "Tavily API Key",
+                        type="password",
+                        placeholder="tvly-... (from app.tavily.com/home)",
+                    )
         if st.button("Force refresh"):
             removed = IntelCache().clear_ttl_entries()
             st.success(f"Cleared {removed} TTL cache entries.")
