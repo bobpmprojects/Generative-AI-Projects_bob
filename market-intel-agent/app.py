@@ -241,7 +241,25 @@ def get_config_secret(name: str) -> str:
         value = st.secrets.get(name, "")
     except (FileNotFoundError, KeyError):
         value = ""
-    return str(value or os.getenv(name, ""))
+    return str(value or os.getenv(name, "")).strip()
+
+
+def render_live_error(error: Exception) -> None:
+    error_name = type(error).__name__
+    detail = str(error).lower()
+    if "tavily" in error_name.lower() or "invalid api key" in detail:
+        st.error(
+            "Tavily rejected the API key in Streamlit secrets. "
+            "Open Manage app -> Settings -> Secrets and verify TAVILY_API_KEY is the raw key from Tavily."
+        )
+        st.info('Expected format: `TAVILY_API_KEY = "tvly-..."` with no extra spaces, labels, or quotes inside the value.')
+    elif "openai" in error_name.lower() or "authentication" in detail:
+        st.error(
+            "OpenAI rejected the API key in Streamlit secrets. "
+            "Verify OPENAI_API_KEY in Manage app -> Settings -> Secrets."
+        )
+    else:
+        st.error(f"Live run failed: {error_name}. Check Streamlit Cloud logs for details.")
 
 
 def run_live(brief: str, openai_key: str, tavily_key: str, synth_model: str, critic_model: str) -> None:
@@ -335,7 +353,10 @@ def main() -> None:
             if not openai_key or not tavily_key:
                 st.error("Live mode requires both OpenAI and Tavily keys.")
             else:
-                run_live(brief, openai_key, tavily_key, synth_model, critic_model)
+                try:
+                    run_live(brief, openai_key, tavily_key, synth_model, critic_model)
+                except Exception as exc:
+                    render_live_error(exc)
 
     if not demo_mode and st.session_state.live_runs >= 1:
         st.warning("Demo limited to 1 run per session. Refresh to reset, or clone the repo to run unlimited locally.")
