@@ -21,6 +21,7 @@ from agent.synthesizer import build_exec_memo, revise_memo
 
 load_dotenv()
 
+BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_BRIEF = (
     "I'm a PM at a hyperscaler tracking the AI inference platform market — specifically how "
     "Together AI, Fireworks, and Baseten are differentiating against Bedrock and Vertex. "
@@ -232,7 +233,7 @@ def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
 
 
 def load_demo_payload() -> dict[str, Any]:
-    return json.loads(Path("samples/sample_run.json").read_text(encoding="utf-8"))
+    return json.loads((BASE_DIR / "samples" / "sample_run.json").read_text(encoding="utf-8"))
 
 
 def get_config_secret(name: str) -> str:
