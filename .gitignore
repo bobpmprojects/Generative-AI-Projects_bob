@@ -5,3 +5,6 @@
 __pycache__/
 *.pyc
 .cursor/
+
+# Local / experimental tree (not part of Market Intel Agent release)
+market-research-agent/
