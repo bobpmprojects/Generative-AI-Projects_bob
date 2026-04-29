@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from html import escape
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -396,104 +394,21 @@ def render_streamlit_sources(title: str, sources: list[Any]) -> None:
             st.markdown(f"{idx}. {label}")
 
 
-_MD_LINK = re.compile(r"\[([^\]]{0,1200})\]\((https?://[^\s)<>]{1,2400})\)")
-_URL_IN_PLAIN = re.compile(r"(https?://[^\s<>\)\"'\]]+)")
-
-
-def _linkify_urls_in_plain(plain: str) -> str:
-    """Escape HTML and wrap bare http(s) URLs in anchor tags."""
-    out: list[str] = []
-    last = 0
-    for m in _URL_IN_PLAIN.finditer(plain):
-        out.append(escape(plain[last : m.start()]))
-        raw_u = m.group(1)
-        u = raw_u.rstrip(".,);:!?")
-        tail = raw_u[len(u) :]
-        href = escape(u, quote=True)
-        out.append(
-            f'<a class="memo-link" href="{href}" target="_blank" rel="noopener noreferrer">{escape(u)}</a>'
-        )
-        if tail:
-            out.append(escape(tail))
-        last = m.end()
-    out.append(escape(plain[last:]))
-    return "".join(out)
-
-
-def _text_to_report_html(raw: str) -> str:
-    """Markdown [label](url) plus bare URLs → safe HTML for the premium report iframe."""
-    raw = raw or ""
-    parts: list[str] = []
-    last = 0
-    for m in _MD_LINK.finditer(raw):
-        parts.append(_linkify_urls_in_plain(raw[last : m.start()]))
-        label, url = m.group(1), m.group(2)
-        parts.append(
-            f'<a class="memo-link" href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">'
-            f"{escape(label)}</a>"
-        )
-        last = m.end()
-    parts.append(_linkify_urls_in_plain(raw[last:]))
-    return "".join(parts)
-
-
-def _html_multiline_card(text: str, empty_msg: str = "No content returned for this section.") -> str:
-    raw = (text or "").strip()
-    if not raw:
-        return f'<div class="dark-card empty-section">{escape(empty_msg)}</div>'
-    body = _text_to_report_html(raw).replace("\n", "<br>")
-    return f'<div class="dark-card long-form">{body}</div>'
-
-
-def _html_company_deep_summaries(memo: ExecMemo) -> str:
-    if not memo.company_deep_summaries:
-        return '<div class="dark-card empty-section">No per-company deep dives were returned.</div>'
-    parts: list[str] = []
-    for cs in memo.company_deep_summaries:
-        name = escape(str(cs.company_name or "Company"))
-        body = _text_to_report_html(str(cs.summary_markdown or "").strip()).replace("\n", "<br>")
-        parts.append(
-            '<div class="company-dive">'
-            f'<div class="report-section-title"><span>{name}</span>'
-            '<span class="section-kicker">Deep dive (4–5 paragraphs)</span></div>'
-            f'<div class="dark-card long-form">{body}</div>'
-            "</div>"
-        )
-    return "".join(parts)
-
-
-def _card_grid(items: list[str], cols: int = 2) -> str:
-    css_class = "action-grid" if cols == 3 else "insight-grid"
-    cards = []
-    for idx, item in enumerate(items, start=1):
-        inner = _text_to_report_html(str(item)).replace("\n", "<br>")
-        cards.append(
-            "<div class='dark-card'>"
-            f"<strong><span class='accent-bar'></span>{idx:02d}</strong><br>{inner}"
-            "</div>"
-        )
-    return f"<div class='{css_class}'>{''.join(cards)}</div>"
-
-
-def _html_key_sources(memo: ExecMemo, limit: int = 24) -> str:
-    if not memo.sources:
-        return ""
-    lines: list[str] = []
-    for i, src in enumerate(memo.sources[:limit], start=1):
-        bag = src.model_dump() if hasattr(src, "model_dump") else src
-        title = str(bag.get("title") or bag.get("url") or "Source")
-        url = str(bag.get("url") or "").strip()
-        if url:
-            lines.append(
-                f'<a class="memo-link source-row" href="{escape(url, quote=True)}" '
-                f'target="_blank" rel="noopener noreferrer">[{i}] {escape(title)}</a>'
-            )
-        else:
-            lines.append(f'<span class="source-row">[{i}] {escape(title)}</span>')
-    return (
-        '<div class="report-section-title"><span>Clickable sources</span>'
-        '<span class="section-kicker">Opens in new tab</span></div>'
-        f'<div class="dark-card source-list">{"<br>".join(lines)}</div>'
+def render_executive_memo_body(memo: ExecMemo, critique: CritiqueReport) -> None:
+    """Primary report = full cited markdown (same substance as export), plus critique snapshot."""
+    st.markdown("### Executive memo (full cited)")
+    st.caption(
+        "Below is the complete synthesized memo (headings, tables, citations). "
+        "Markdown links open in the same tab; use the bibliography for quick source jumps."
+    )
+    st.markdown(memo.full_markdown or "_No memo body was returned for this run._")
+    st.divider()
+    risks = critique.top_3_risks_to_recipient or []
+    risk_lines = "\n".join(f"- {r}" for r in risks) if risks else "- _(none listed)_"
+    st.markdown(
+        f"### Confidence & machine critique snapshot\n"
+        f"- Auto QC score: **{critique.confidence_score}/100**\n"
+        f"{risk_lines}"
     )
 
 
@@ -538,166 +453,6 @@ def render_report_charts(intel: dict[str, Any]) -> None:
     with c2:
         st.caption("News sentiment labels (from extracted news items only).")
         st.bar_chart(df.set_index("Company")[["News +", "News neg", "News other"]], stack=False)
-
-
-def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
-    risk_cards = _card_grid(critique.top_3_risks_to_recipient or memo.risks_watch_items[:3], cols=3)
-    inner = f"""
-        <div class="dark-report">
-            <div class="section-kicker">Board-Ready Competitive Intelligence</div>
-            <h2>{escape(str(memo.sector))} Market Read</h2>
-            <div class="bluf-box"><strong>Bottom Line:</strong> {_text_to_report_html(str(memo.bottom_line))}</div>
-
-            <div class="report-section-title"><span>Key Movements</span><span class="section-kicker">What Changed</span></div>
-            {_card_grid(memo.key_movements[:6], cols=2)}
-
-            <div class="report-section-title"><span>Competitive Dynamics</span><span class="section-kicker">Strategic Read</span></div>
-            <div class="dark-card">{_text_to_report_html(str(memo.competitive_dynamics))}</div>
-
-            <div class="report-section-title"><span>Analyst Reports &amp; Investor Analysis</span><span class="section-kicker">Capital markets &amp; sell-side</span></div>
-            {_html_multiline_card(memo.analyst_reports_investor_analysis)}
-
-            <div class="report-section-title"><span>Growth, Revenue &amp; Projections</span><span class="section-kicker">From news &amp; market context</span></div>
-            {_html_multiline_card(memo.growth_revenue_projections_from_news)}
-
-            <div class="insight-grid">
-                <div>
-                    <div class="report-section-title"><span>Investor Sentiment</span></div>
-                    <div class="dark-card">{_text_to_report_html(str(memo.investor_sentiment_read))}</div>
-                </div>
-                <div>
-                    <div class="report-section-title"><span>Social & Customer Sentiment</span></div>
-                    <div class="dark-card">{_text_to_report_html(str(memo.social_customer_sentiment_read or "See Social & Reviews tab for extracted evidence."))}</div>
-                </div>
-            </div>
-
-            <div class="report-section-title"><span>Company Deep Dives</span><span class="section-kicker">Full narrative per company</span></div>
-            {_html_company_deep_summaries(memo)}
-
-            <div class="report-section-title"><span>Risks</span><span class="section-kicker">Recipient Watchouts</span></div>
-            {risk_cards}
-
-            <div class="report-section-title"><span>Recommended Actions</span><span class="section-kicker">Next Moves</span></div>
-            {_card_grid(memo.recommended_actions[:6], cols=3)}
-
-            {_html_key_sources(memo)}
-
-            <div class="section-kicker" style="margin-top:1rem;">Charts and bibliography below use native Streamlit (same session).</div>
-        </div>
-    """
-    doc = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<style>
-  body {{ margin:0; padding:0; background:transparent; font-family:Inter,system-ui,sans-serif; }}
-  .dark-report {{
-    background: linear-gradient(180deg, #071a1f 0%, #0a1117 100%);
-    color: #dbeafe;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 18px;
-    padding: 1.3rem;
-  }}
-  .dark-report h2 {{
-    color: #f8fafc;
-    font-family: Georgia, 'Times New Roman', serif;
-    letter-spacing: -0.03em;
-    margin-top: 0.2rem;
-  }}
-  .section-kicker {{
-    color: #67e8f9;
-    font-size: 0.62rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }}
-  .report-section-title {{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
-    margin: 1.3rem 0 0.7rem 0;
-    padding-bottom: 0.35rem;
-    color: #f8fafc;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-weight: 700;
-    font-size: 1.2rem;
-  }}
-  .bluf-box {{
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(12, 42, 49, 0.96));
-    border: 1px solid rgba(34, 211, 238, 0.30);
-    border-left: 4px solid #f59e0b;
-    border-radius: 14px;
-    padding: 1rem;
-    font-size: 1.02rem;
-    line-height: 1.55;
-    color: #f8fafc;
-  }}
-  .insight-grid {{
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.8rem;
-  }}
-  .action-grid {{
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.8rem;
-  }}
-  .dark-card {{
-    background: rgba(15, 23, 42, 0.82);
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    border-radius: 12px;
-    padding: 0.85rem;
-    color: #cbd5e1;
-  }}
-  .dark-card strong {{
-    color: #f8fafc;
-  }}
-  .dark-card.long-form {{
-    line-height: 1.62;
-    font-size: 0.98rem;
-  }}
-  .dark-card.empty-section {{
-    color: #94a3b8;
-    font-style: italic;
-  }}
-  .company-dive {{
-    margin-bottom: 1.1rem;
-  }}
-  .accent-bar {{
-    width: 3px;
-    height: 1.4rem;
-    background: #22d3ee;
-    display: inline-block;
-    margin-right: 0.45rem;
-    vertical-align: middle;
-  }}
-  .source-link {{
-    display: block;
-    color: #67e8f9 !important;
-    border-top: 1px solid rgba(148, 163, 184, 0.18);
-    padding: 0.45rem 0;
-    text-decoration: none;
-  }}
-  .memo-link {{
-    color: #7dd3fc !important;
-    text-decoration: underline;
-    word-break: break-word;
-  }}
-  .source-list .source-row {{
-    display: block;
-    margin: 0.2rem 0;
-    line-height: 1.45;
-  }}
-</style>
-</head>
-<body>
-  {inner}
-</body>
-</html>
-"""
-    height = max(780, min(5200, 820 + len(doc) // 3))
-    components.html(doc, height=height, scrolling=True)
 
 
 def load_demo_payload() -> dict[str, Any]:
@@ -892,7 +647,7 @@ def main() -> None:
             f"- Confidence score: **{critique.confidence_score}/100**\n"
             + "\n".join(f"- Risk: {r}" for r in critique.top_3_risks_to_recipient)
         )
-        render_premium_memo(memo, critique)
+        render_executive_memo_body(memo, critique)
         render_report_charts(result.get("intel") or {})
         if result.get("market_context"):
             mc = MarketContextReport.model_validate(result["market_context"])
@@ -908,9 +663,12 @@ def main() -> None:
                     st.caption(mc.methodology_caveats)
                 render_streamlit_sources("Supporting market sources", mc.supporting_sources)
         render_streamlit_sources("Memo bibliography (clickable)", memo.sources)
-        with st.expander("Full cited memo text"):
-            st.markdown(memo_with_risks)
-        st.download_button("Export as .md", data=memo_with_risks, file_name="market_intel_memo.md")
+        st.download_button(
+            "Export memo + critique snapshot as .md",
+            data=memo_with_risks,
+            file_name="market_intel_memo.md",
+            help="Includes full cited memo plus Confidence & Risks footer.",
+        )
         if "memo_v1" in result and result.get("memo_v1") != result.get("memo_v2"):
             with st.expander("View v1 memo"):
                 st.markdown(result["memo_v1"])

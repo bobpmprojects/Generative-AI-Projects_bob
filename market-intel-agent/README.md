@@ -13,7 +13,7 @@ Anyone with a normal laptop, Python, and (for live runs) two API keys can run or
 | **Demo** | None | Loads a built-in sample memo instantly — good for UI tours and training. |
 | **Live** | OpenAI + Tavily | Plans scope, searches the web in parallel, synthesizes a fresh memo (~a few minutes). |
 
-**Outputs (Memo tab):** executive hero strip, premium report (bottom line, movements, analyst/investor narrative, growth/revenue read, deep dives per company, risks, actions), **clickable sources** and linkified URLs where the model included them, **bar charts** (coverage and news sentiment by company), market context expander (when present), bibliography, **Export as .md**.
+**Outputs (Memo tab):** executive hero strip, **full cited memo** (complete `full_markdown`: all sections the model wrote, including tables and citations), machine-critique snapshot, **bar charts** (coverage and news sentiment by company), market context expander (when present), bibliography, **Export as .md** (memo + critique footer).
 
 **Other tabs:** **Follow-ups** (open questions + optional “revise memo” using critique), **Social & Reviews** (summary of sentiment by company), **Sources** (memo bibliography).
 
@@ -123,7 +123,7 @@ Demo Mode can stay **ON** for visitors who should not consume your credits.
 2. **Demo Mode:** leave **ON** and click **Generate Memo** for an instant sample (no keys).
 3. **Live run:** turn **Demo Mode OFF**, ensure keys are set (secrets or sidebar), edit the **Research Brief** if you like, click **Generate Memo** once.
 4. Wait for the status steps to finish (~2–4 minutes typical; depends on company count and models).
-5. Read the **Memo** tab; expand **Full cited memo text** to copy or review raw Markdown.
+5. Read the **Memo** tab — the **Executive memo (full cited)** block is the complete Markdown report (same as export body).
 6. Use **Follow-ups** for suggested next questions; optionally **Revise memo** (live + OpenAI only).
 7. **Export as .md** downloads the memo plus confidence/risks footer.
 
