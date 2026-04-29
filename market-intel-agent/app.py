@@ -27,8 +27,8 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_BRIEF = (
     "I'm a PM at a hyperscaler tracking the AI inference platform market — specifically how "
-    "Together AI, Fireworks, and Baseten are differentiating against Bedrock and Vertex. "
-    "Want to know who's winning enterprise share over the last 6 months and which is most likely to IPO."
+    "Together AI and Fireworks compare to Microsoft Azure AI Foundry, Google Vertex AI, and Amazon Bedrock. "
+    "I want enterprise traction, differentiation, and partnership risk over the last six months."
 )
 PRICING_PER_1K = {"gpt-4o-mini": 0.0003, "gpt-4o": 0.01, "gpt-5.5": 0.02}
 
@@ -273,26 +273,14 @@ def update_cost(model: str, usage: dict[str, Any]) -> None:
     st.session_state.cost_usd += est_cost(model, usage)
 
 
-def render_qc_callout(verdict: str, score: int) -> None:
-    verdict_l = (verdict or "").lower().strip()
-    if verdict_l == "ship":
-        st.success(
-            f"Automated quality check: **Ship** (confidence {score}/100). "
-            "This is a machine red-team assessment, not a human sign-off."
-        )
-    elif verdict_l == "revise":
-        st.warning(
-            f"Automated quality check: **Revise** (confidence {score}/100). "
-            "The model suggests tightening sourcing or narrowing claims before you circulate externally. "
-            "Use **Revise memo with this feedback** on the Critique tab to generate an edited v2."
-        )
-    elif verdict_l == "reject":
-        st.error(
-            f"Automated quality check: **Reject** (confidence {score}/100). "
-            "Do not share this memo until the issues in the Critique tab are addressed."
-        )
-    else:
-        st.info(f"Automated quality check returned `{verdict}` (confidence {score}/100).")
+def render_open_questions_callout(critique: CritiqueReport) -> None:
+    """Surface follow-ups only; machine verdict labels (e.g. Revise) are omitted here."""
+    questions = [str(q).strip() for q in (critique.open_questions_for_followup or []) if str(q).strip()]
+    if not questions:
+        return
+    st.markdown("##### Follow-up questions")
+    for item in questions:
+        st.markdown(f"- {item}")
 
 
 def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
@@ -303,7 +291,6 @@ def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
             <div class="title">{plan.sector}</div>
             <div class="meta">
                 Decision context: {plan.decision_context.replace("_", " ").title()} ·
-                Confidence: {critique.confidence_score}/100 ·
                 Companies: {len(plan.companies)}
             </div>
         </div>
@@ -317,13 +304,80 @@ def render_report_header(plan: ResearchPlan, critique: CritiqueReport) -> None:
                 <div class="metric-value">{plan.lookback_days} days</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Critique</div>
-                <div class="metric-value">{critique.overall_verdict.title()}</div>
+                <div class="metric-label">Auto QC score</div>
+                <div class="metric-value">{critique.confidence_score}/100</div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def _dominant_sentiment(labels: list[str]) -> str:
+    norm: list[str] = []
+    for raw in labels:
+        k = (raw or "").strip().lower() or "mixed"
+        if k not in {"positive", "negative", "mixed", "neutral"}:
+            k = "mixed"
+        norm.append(k)
+    if not norm:
+        return "no labeled signals"
+    counts: dict[str, int] = {}
+    for k in norm:
+        counts[k] = counts.get(k, 0) + 1
+    top = max(counts, key=counts.get)
+    return top
+
+
+def render_social_reviews_summary(intel: dict[str, Any], memo: ExecMemo) -> None:
+    """Names covered plus an executive-style sentiment read (no raw tables)."""
+    companies = sorted(intel.keys())
+    if not companies:
+        st.info("No company intel was returned for this run.")
+        return
+
+    st.markdown("### Companies covered")
+    st.markdown(", ".join(f"**{escape(c)}**" for c in companies))
+
+    all_social: list[str] = []
+    all_review: list[str] = []
+    per_company: list[str] = []
+    for name in companies:
+        bag = intel.get(name) or {}
+        social = bag.get("social_sentiment") or []
+        reviews = bag.get("customer_review_signals") or []
+        s_labels = [str(r.get("sentiment", "") or "") for r in social]
+        r_labels = [str(r.get("sentiment", "") or "") for r in reviews]
+        all_social.extend(s_labels)
+        all_review.extend(r_labels)
+        if not social and not reviews:
+            per_company.append(f"- **{escape(name)}:** no discrete social or review rows extracted.")
+        else:
+            s_dom = _dominant_sentiment(s_labels) if social else "—"
+            r_dom = _dominant_sentiment(r_labels) if reviews else "—"
+            per_company.append(
+                f"- **{escape(name)}:** community signals lean **{s_dom}**; "
+                f"buyer/review signals lean **{r_dom}**."
+            )
+
+    st.markdown("### Per-company sentiment (from extracted signals)")
+    st.markdown("\n".join(per_company))
+
+    st.markdown("### Overall read")
+    body = (memo.social_customer_sentiment_read or "").strip()
+    if body:
+        st.markdown(body)
+    else:
+        st.caption("The memo did not include a synthesized social and customer narrative for this run.")
+
+    if all_social or all_review:
+        mix_parts = []
+        if all_social:
+            mix_parts.append(f"community: mostly **{_dominant_sentiment(all_social)}** ({len(all_social)} signals)")
+        if all_review:
+            mix_parts.append(f"reviews: mostly **{_dominant_sentiment(all_review)}** ({len(all_review)} signals)")
+        st.markdown("### Aggregate signal mix")
+        st.caption("Across all companies — " + "; ".join(mix_parts) + ".")
 
 
 def render_streamlit_sources(title: str, sources: list[Any]) -> None:
@@ -339,6 +393,30 @@ def render_streamlit_sources(title: str, sources: list[Any]) -> None:
             st.markdown(f"{idx}. [{label}]({url})")
         else:
             st.markdown(f"{idx}. {label}")
+def _html_multiline_card(text: str, empty_msg: str = "No content returned for this section.") -> str:
+    raw = (text or "").strip()
+    if not raw:
+        return f'<div class="dark-card empty-section">{escape(empty_msg)}</div>'
+    return f'<div class="dark-card long-form">{escape(raw).replace(chr(10), "<br>")}</div>'
+
+
+def _html_company_deep_summaries(memo: ExecMemo) -> str:
+    if not memo.company_deep_summaries:
+        return '<div class="dark-card empty-section">No per-company deep dives were returned.</div>'
+    parts: list[str] = []
+    for cs in memo.company_deep_summaries:
+        name = escape(str(cs.company_name or "Company"))
+        body = escape(str(cs.summary_markdown or "").strip()).replace("\n", "<br>")
+        parts.append(
+            '<div class="company-dive">'
+            f'<div class="report-section-title"><span>{name}</span>'
+            '<span class="section-kicker">Deep dive (4–5 paragraphs)</span></div>'
+            f'<div class="dark-card long-form">{body}</div>'
+            "</div>"
+        )
+    return "".join(parts)
+
+
 def _card_grid(items: list[str], cols: int = 2) -> str:
     css_class = "action-grid" if cols == 3 else "insight-grid"
     cards = []
@@ -365,6 +443,12 @@ def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
             <div class="report-section-title"><span>Competitive Dynamics</span><span class="section-kicker">Strategic Read</span></div>
             <div class="dark-card">{escape(str(memo.competitive_dynamics))}</div>
 
+            <div class="report-section-title"><span>Analyst Reports &amp; Investor Analysis</span><span class="section-kicker">Capital markets &amp; sell-side</span></div>
+            {_html_multiline_card(memo.analyst_reports_investor_analysis)}
+
+            <div class="report-section-title"><span>Growth, Revenue &amp; Projections</span><span class="section-kicker">From news &amp; market context</span></div>
+            {_html_multiline_card(memo.growth_revenue_projections_from_news)}
+
             <div class="insight-grid">
                 <div>
                     <div class="report-section-title"><span>Investor Sentiment</span></div>
@@ -375,6 +459,9 @@ def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
                     <div class="dark-card">{escape(str(memo.social_customer_sentiment_read or "See Social & Reviews tab for extracted evidence."))}</div>
                 </div>
             </div>
+
+            <div class="report-section-title"><span>Company Deep Dives</span><span class="section-kicker">Full narrative per company</span></div>
+            {_html_company_deep_summaries(memo)}
 
             <div class="report-section-title"><span>Risks</span><span class="section-kicker">Recipient Watchouts</span></div>
             {risk_cards}
@@ -453,6 +540,17 @@ def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
   .dark-card strong {{
     color: #f8fafc;
   }}
+  .dark-card.long-form {{
+    line-height: 1.62;
+    font-size: 0.98rem;
+  }}
+  .dark-card.empty-section {{
+    color: #94a3b8;
+    font-style: italic;
+  }}
+  .company-dive {{
+    margin-bottom: 1.1rem;
+  }}
   .accent-bar {{
     width: 3px;
     height: 1.4rem;
@@ -475,7 +573,7 @@ def render_premium_memo(memo: ExecMemo, critique: CritiqueReport) -> None:
 </body>
 </html>
 """
-    height = max(780, min(3400, 820 + len(doc) // 3))
+    height = max(780, min(5200, 820 + len(doc) // 3))
     components.html(doc, height=height, scrolling=True)
 
 
@@ -595,6 +693,7 @@ def main() -> None:
     st.caption("Describe what you want to know. Get an executive-ready market memo in ~3 minutes.")
 
     with st.sidebar:
+        st.caption("UI v2 · Memo, Follow-ups, Social & Reviews, Sources — if you see Research Plan, restart from repo `app.py`.")
         demo_mode = st.toggle("Demo Mode", value=True)
         model_options = ["gpt-5.5", "gpt-4o", "gpt-4o-mini"]
         synth_model = st.selectbox("Synthesis model", model_options, index=0)
@@ -628,7 +727,7 @@ def main() -> None:
         st.metric("Live cost estimate", f"${st.session_state.cost_usd:.3f}")
         st.write(f"Live runs this session: {st.session_state.live_runs} / 1")
 
-    brief = st.text_area("Research Brief", value=DEFAULT_BRIEF, height=180)
+    brief = st.text_area("Research Brief", value=DEFAULT_BRIEF, height=100)
     st.caption(
         "Describe the market or question. Mention specific companies if you have them, or just describe the space — the agent will infer relevant companies."
     )
@@ -660,11 +759,11 @@ def main() -> None:
     if critique.overall_verdict == "reject":
         st.error("⚠️ This memo failed critique — review before sharing.")
 
-    tabs = st.tabs(["📋 Memo", "🛡️ Critique", "🧭 Research Plan", "💬 Social & Reviews", "🔗 Sources", "🔍 Raw Intel"])
+    tabs = st.tabs(["📋 Memo", "❓ Follow-ups", "💬 Social & Reviews", "🔗 Sources"])
 
     with tabs[0]:
         render_report_header(plan, critique)
-        render_qc_callout(critique.overall_verdict, critique.confidence_score)
+        render_open_questions_callout(critique)
         memo_with_risks = (
             f"{memo_text}\n\n## Confidence & Risks\n"
             f"- Confidence score: **{critique.confidence_score}/100**\n"
@@ -693,54 +792,15 @@ def main() -> None:
                 st.markdown(result["memo_v1"])
 
     with tabs[1]:
-        render_qc_callout(critique.overall_verdict, critique.confidence_score)
-        st.markdown("<div class='report-card'>", unsafe_allow_html=True)
-        st.subheader(f"Confidence Score: {critique.confidence_score}/100")
-        st.caption(critique.confidence_rationale)
-        st.markdown("### Top 3 Risks to Recipient")
-        for risk in critique.top_3_risks_to_recipient:
-            st.write(f"- {risk}")
-        st.markdown("</div>", unsafe_allow_html=True)
-        rows = [
-            {
-                "Severity": f.severity,
-                "Dimension": f.dimension,
-                "Location": f.location,
-                "Finding": f.finding,
-                "Recommended Fix": f.recommended_fix,
-            }
-            for f in critique.findings
-        ]
-        df = pd.DataFrame(rows)
-        if not df.empty:
-            severity_rank = {"high": 0, "medium": 1, "low": 2}
-            df["rank"] = df["Severity"].map(severity_rank).fillna(9)
-            df = df.sort_values(by=["rank", "Dimension"]).drop(columns=["rank"])
-            styled = df.style.apply(
-                lambda row: [
-                    (
-                        "background-color: #fee2e2; color: #7f1d1d;"
-                        if row["Severity"] == "high"
-                        else "background-color: #fef3c7; color: #78350f;"
-                        if row["Severity"] == "medium"
-                        else "background-color: #f3f4f6; color: #374151;"
-                    )
-                    for _ in row
-                ],
-                axis=1,
-            )
-            st.dataframe(styled, use_container_width=True)
+        st.markdown("### Open questions")
+        if critique.open_questions_for_followup:
+            for item in critique.open_questions_for_followup:
+                st.write(f"- {item}")
         else:
-            st.info("No critique findings returned.")
-        st.markdown("### Strongest Aspects")
-        for item in critique.strongest_aspects:
-            st.write(f"- {item}")
-        st.markdown("### Open Questions")
-        for item in critique.open_questions_for_followup:
-            st.write(f"- {item}")
+            st.caption("No follow-up questions were returned for this run.")
 
         revise_disabled = demo_mode or not openai_key
-        if st.button("🔄 Revise memo with this feedback", disabled=revise_disabled):
+        if st.button("🔄 Revise memo using machine critique", disabled=revise_disabled):
             with st.spinner("Revising memo..."):
                 client = OpenAI(api_key=openai_key)
                 revised, usage = revise_memo(
@@ -758,61 +818,55 @@ def main() -> None:
         if revise_disabled:
             st.caption("Revision requires live mode with a valid OpenAI key.")
 
+        with st.expander("Detailed machine critique (scores, risks, findings)"):
+            st.caption(f"Internal QC confidence: {critique.confidence_score}/100 — not a human verdict.")
+            st.write(critique.confidence_rationale)
+            st.markdown("**Top risks to recipient**")
+            for risk in critique.top_3_risks_to_recipient:
+                st.write(f"- {risk}")
+            rows = [
+                {
+                    "Severity": f.severity,
+                    "Dimension": f.dimension,
+                    "Location": f.location,
+                    "Finding": f.finding,
+                    "Recommended Fix": f.recommended_fix,
+                }
+                for f in critique.findings
+            ]
+            df = pd.DataFrame(rows)
+            if not df.empty:
+                severity_rank = {"high": 0, "medium": 1, "low": 2}
+                df["rank"] = df["Severity"].map(severity_rank).fillna(9)
+                df = df.sort_values(by=["rank", "Dimension"]).drop(columns=["rank"])
+                styled = df.style.apply(
+                    lambda row: [
+                        (
+                            "background-color: #fee2e2; color: #7f1d1d;"
+                            if row["Severity"] == "high"
+                            else "background-color: #fef3c7; color: #78350f;"
+                            if row["Severity"] == "medium"
+                            else "background-color: #f3f4f6; color: #374151;"
+                        )
+                        for _ in row
+                    ],
+                    axis=1,
+                )
+                st.dataframe(styled, use_container_width=True)
+            else:
+                st.info("No findings rows returned.")
+            st.markdown("**Strongest aspects**")
+            for item in critique.strongest_aspects:
+                st.write(f"- {item}")
+
     with tabs[2]:
-        st.json(
-            {
-                "sector": plan.sector,
-                "companies": plan.companies,
-                "inferred_companies": plan.inferred_companies,
-                "key_questions": [q.model_dump() for q in plan.key_questions],
-                "decision_context": plan.decision_context,
-                "decision_context_detail": plan.decision_context_detail,
-                "confidence": plan.confidence,
-            }
-        )
+        render_social_reviews_summary(result["intel"], memo)
 
     with tabs[3]:
-        social_rows: list[dict[str, str]] = []
-        review_rows: list[dict[str, str]] = []
-        for company, intel in result["intel"].items():
-            for row in intel.get("social_sentiment", []):
-                social_rows.append(
-                    {
-                        "Company": company,
-                        "Channel": row.get("channel", ""),
-                        "Audience": row.get("audience", ""),
-                        "Sentiment": row.get("sentiment", ""),
-                        "Summary": row.get("summary", ""),
-                        "Evidence": row.get("evidence_url", ""),
-                    }
-                )
-            for row in intel.get("customer_review_signals", []):
-                review_rows.append(
-                    {
-                        "Company": company,
-                        "Source": row.get("source", ""),
-                        "Segment": row.get("segment", ""),
-                        "Sentiment": row.get("sentiment", ""),
-                        "Themes": ", ".join(row.get("themes", [])),
-                        "Summary": row.get("summary", ""),
-                        "Evidence": row.get("evidence_url", ""),
-                    }
-                )
-        st.markdown("### Social / Community Sentiment")
-        st.dataframe(pd.DataFrame(social_rows), use_container_width=True)
-        st.markdown("### Customer Review Signals")
-        st.dataframe(pd.DataFrame(review_rows), use_container_width=True)
-
-    with tabs[4]:
         for idx, src in enumerate(memo.sources, start=1):
             data = src.model_dump() if hasattr(src, "model_dump") else src
             title = data.get("title") or data.get("url") or "Source"
             st.markdown(f"{idx}. [{title}]({data.get('url', '#')})")
-
-    with tabs[5]:
-        for company, intel in result["intel"].items():
-            with st.expander(company):
-                st.json(intel)
 
     st.markdown(
         "<div class='footnote'>Built by Your Name · github.com/your-user/market-intel-agent</div>",

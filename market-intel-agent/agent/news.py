@@ -17,7 +17,10 @@ def get_recent_news(
     lookback_days: int,
     model: str = "gpt-4o-mini",
 ) -> tuple[list[NewsItem], dict]:
-    query = f"{company} news last {lookback_days} days launches funding partnerships incidents"
+    query = (
+        f"{company} news last {lookback_days} days revenue growth earnings guidance "
+        f"forecast launches funding partnerships incidents"
+    )
     cached = cache.get_ttl("news", company, query, ttl_hours=24)
     if cached:
         return [NewsItem.model_validate(item) for item in cached], {"cached": True}
@@ -28,7 +31,10 @@ def get_recent_news(
         messages=[
             {
                 "role": "system",
-                "content": "Convert search evidence to a concise list of factual NewsItem records only.",
+                "content": (
+                    "Convert search evidence to concise factual NewsItem records. "
+                    "Use signal_type values like growth, revenue, funding, product, partnership, risk, regulatory, other when fit."
+                ),
             },
             {"role": "user", "content": f"Company: {company}\nEvidence:\n{evidence}"},
         ],

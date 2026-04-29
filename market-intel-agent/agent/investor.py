@@ -12,7 +12,10 @@ from .search import tavily_search
 def get_investor_signals(
     client: OpenAI, cache: IntelCache, tavily_key: str, company: str, model: str = "gpt-4o-mini"
 ) -> tuple[list[InvestorSignal], dict]:
-    query = f"{company} valuation funding investor sentiment IPO rumors"
+    query = (
+        f"{company} analyst report sell-side research note valuation funding "
+        f"investor sentiment IPO M&A strategic alternatives"
+    )
     cached = cache.get_ttl("investor", company, query, ttl_hours=24)
     if cached:
         return [InvestorSignal.model_validate(item) for item in cached], {"cached": True}
@@ -23,7 +26,10 @@ def get_investor_signals(
         messages=[
             {
                 "role": "system",
-                "content": "Extract investor-relevant signals only. Prefer confirmed over speculative statements.",
+                "content": (
+                    "Extract investor- and analyst-relevant signals (reports, notes, funding, valuation, IPO/M&A). "
+                    "Prefer confirmed over speculative statements."
+                ),
             },
             {"role": "user", "content": f"Company: {company}\nEvidence:\n{evidence}"},
         ],

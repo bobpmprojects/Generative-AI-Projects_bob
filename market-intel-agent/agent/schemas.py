@@ -108,6 +108,13 @@ class Source(BaseModel):
     note: str = ""
 
 
+class CompanyDeepSummary(BaseModel):
+    """Four to five paragraph cited narrative for one covered company."""
+
+    company_name: str = ""
+    summary_markdown: str = ""
+
+
 class MarketContextReport(BaseModel):
     executive_summary: str = ""
     tam_and_spend_signals: str = ""
@@ -126,6 +133,9 @@ class ExecMemo(BaseModel):
     competitive_dynamics: str = ""
     investor_sentiment_read: str = ""
     social_customer_sentiment_read: str = ""
+    analyst_reports_investor_analysis: str = ""
+    growth_revenue_projections_from_news: str = ""
+    company_deep_summaries: list[CompanyDeepSummary] = Field(default_factory=list)
     risks_watch_items: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
